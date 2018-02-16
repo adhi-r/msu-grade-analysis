@@ -1,8 +1,0 @@
-"0","tidy_grades %>%
-  filter(subject_code == ""EC"" & course_code == ""406"") %>%
-  group_by(grade) %>%
-  summarise(freq = sum(quantity)) %>%
-  ggplot(aes(grade, freq)) +
-  geom_histogram(stat = ""identity"")
-"
-"2","Ignoring unknown parameters: binwidth, bins, pad"

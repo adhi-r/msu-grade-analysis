@@ -1,4 +1,0 @@
-"0","grades <- grades %>%"
-"0","  filter(`Subject Code` != 'LAW') %>%"
-"0","  select( -8, -(26:38)) # these columns are the law school grades, we don't want them"
-"0","grades"
