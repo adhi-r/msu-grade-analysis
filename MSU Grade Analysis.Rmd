@@ -1,0 +1,148 @@
+---
+title: "MSU Grade Analysis"
+author: "Adhi Rajaprabhakaran"
+date: "9/19/2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Importing/Cleaning
+
+Firstly, I just wanna give huge, huge props to Colin Dillinger who is the one who submitted the FOIA and scraped all the data into the excel format that we're about to download. It's just that excel isn't good enough for me :).
+
+Let's download and check out the dataset as it is.
+
+```{r cars}
+library(tidyverse)
+
+httr::GET("https://msugrades.github.io/excel/Grades.xlsx", httr::write_disk(tf <- tempfile(fileext = ".xlsx")))
+grades <- readxl::read_excel(tf)
+
+names(grades)
+```
+
+So we can see that we have about 36k rows and 43 columns, where each row is a class-semester-professor combination, where the observations of grades
+
+There are two grading scales in this dataset - the point scale and the letter scale. The vast majority of MSU students are graded on the point scale, 1.0-4.0. The one exception is the law school, where a more traditional letter scale is used. Just to make sure:
+
+```{r}
+grades %>% 
+  filter(`A` > 0) %>% 
+  select(`Subject Code`) %>% 
+  unique()
+```
+These data are interesting in their own right, but let's just look at grades that abide by the regular system. 
+
+```{r deselect law data}
+grades <- grades %>%
+  filter(`Subject Code` != 'LAW') %>%
+  select( -8, -(26:38)) # these columns are the law school grades, we don't want them
+
+grades
+```
+
+The dataset has some annoying column names, with spaces and capital letters.
+
+```{r rename cols}
+names(grades) <- names(grades) %>% 
+  tolower() %>% 
+  gsub(" ", "_", .)
+names(grades)
+```
+
+Now, as a devotee of the tidyverse (Praise Be Upon Hadley), I have to convert this data to tidy format, even if I get a dataframe with unwieldly dimensions.
+
+```{r tidy data}
+tidy_grades <- grades %>%
+  select(term_code:instructor, `4`:`0`) %>%
+  gather(grade, quantity, -(term_code:instructor)) %>%
+  mutate(grade = as.numeric(grade),
+         course_code = as.numeric(course_code))
+str(tidy_grades)
+```
+
+## Which majors are the easiest and hardest?
+
+```{r}
+tidy_grades %>%
+  group_by(subject_code) %>%
+  #filter(sum(quantity) > 3000) %>%
+  summarise(mean_grade = sum(grade*quantity)/sum(quantity)) %>%
+  arrange(desc(mean_grade))
+```
+```{r distribution of university}
+tidy_grades %>%
+  group_by(grade) %>%
+  summarise(freq = sum(quantity)) %>%
+  ggplot(aes(grade, freq)) +
+  geom_histogram(stat = "identity")
+```
+
+```{r densities of different majors}
+tidy_grades %>%
+  group_by()
+  ggplot(aes(grade,))
+  geom_density()
+```
+
+
+EC 406 is "Economic Analysis of Russia" taught by Professor Susan J. Linz.
+```{r ec 406 distribution}
+tidy_grades %>%
+  filter(subject_code == "EC" & course_code == "406") %>%
+  group_by(grade) %>%
+  summarise(freq = sum(quantity)) %>%
+  ggplot(aes(grade, freq)) +
+  geom_histogram(stat = "identity")
+```
+
+```{r ec distribution}
+hists <- tidy_grades %>%
+  filter(subject_code %in% c("ACC", "MTH", "SCM", "FI", "EC", "MKT")) %>%
+  group_by(subject_code, grade) %>%
+  summarise(freq = sum(quantity)) %>%
+  ggplot(aes(grade, freq, fill = subject_code)) +
+  geom_histogram(stat = "identity")
+
+hists + facet_wrap(~subject_code, scales = "free")
+```
+
+## Trends over time
+```{r subject over time}
+tidy_grades_semester <- tidy_grades %>%
+  # using rank to get the positional order of every semester)
+  mutate(semester = dense_rank(tidy_grades$sortable_term)) %>%
+  group_by(subject_code, semester) %>%
+  summarise(mean_grade = sum(grade*quantity)/sum(quantity))
+
+tidy_grades_semester %>%
+  filter(subject_code %in% c("MTH", "EC", "SCM", "FI", "ENG", "PSY")) %>%
+  ggplot(aes(semester, mean_grade, col = subject_code)) +
+  geom_line()
+```
+
+Two things - clear grade inflation and seasonaility in math courses. Let's check out math.
+
+```{r}
+tidy_grades %>%
+  filter(subject_code %in% c("SCM", "FI", "ACC", "MKT", "HR", "MGT"),
+         course_code < 500) %>%
+  group_by(subject_code, course_code) %>%
+  summarise(mean_grade = sum(grade*quantity)/sum(quantity),
+            median_grade = median(rep(grade, quantity))) %>%
+  arrange(-mean_grade)
+```
+
+```{r}
+tidy_grades %>%
+  filter(subject_code %in% c("SCM", "FI", "ACC", "MKT", "HR", "MGT"),
+         course_code < 500) %>%
+  group_by(subject_code, course_code) %>%
+  summarise(mean_grade = sum(grade*quantity)/sum(quantity),
+            median_grade = median(rep(grade, quantity))) %>%
+  arrange(mean_grade)
+```
+

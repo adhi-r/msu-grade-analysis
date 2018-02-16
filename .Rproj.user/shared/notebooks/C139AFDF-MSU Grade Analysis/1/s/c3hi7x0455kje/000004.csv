@@ -1,0 +1,6 @@
+"0","tidy_grades %>%"
+"0","  group_by(grade) %>%"
+"0","  summarise(freq = sum(quantity)) %>%"
+"0","  ggplot(aes(grade, freq)) +"
+"0","  geom_histogram(stat = ""identity"")"
+"2","Ignoring unknown parameters: binwidth, bins, pad"

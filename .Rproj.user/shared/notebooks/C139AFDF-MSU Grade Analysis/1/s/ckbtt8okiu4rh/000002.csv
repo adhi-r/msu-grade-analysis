@@ -1,0 +1,5 @@
+"0","tidy_grades %>%"
+"0","  group_by(subject_code) %>%"
+"0","  #filter(sum(quantity) > 3000) %>%"
+"0","  summarise(mean_grade = sum(grade*quantity)/sum(quantity)) %>%"
+"0","  arrange(desc(mean_grade))"
