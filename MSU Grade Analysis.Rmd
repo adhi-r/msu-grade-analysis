@@ -7,6 +7,7 @@ output: html_document
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+options(tibble.print_max = 15, tibble.print_min = 15)
 ```
 
 ## Importing/Cleaning
@@ -21,10 +22,12 @@ library(tidyverse)
 httr::GET("https://msugrades.github.io/excel/Grades.xlsx", httr::write_disk(tf <- tempfile(fileext = ".xlsx")))
 grades <- readxl::read_excel(tf)
 
-names(grades)
+glimpse(grades)
 ```
 
-So we can see that we have about 36k rows and 43 columns, where each row is a class-semester-professor combination, where the observations of grades
+So we can see that we have about 36k rows and 43 columns, where each row is a class-semester-professor combination, and each column is some information about it.
+
+The FOIA office was kind enough to calculate mean grades for us, but we will calculate it ourselves after tidying the data a bit.
 
 There are two grading scales in this dataset - the point scale and the letter scale. The vast majority of MSU students are graded on the point scale, 1.0-4.0. The one exception is the law school, where a more traditional letter scale is used. Just to make sure:
 
@@ -41,10 +44,10 @@ grades <- grades %>%
   filter(`Subject Code` != 'LAW') %>%
   select( -8, -(26:38)) # these columns are the law school grades, we don't want them
 
-grades
+glimpse(grades)
 ```
 
-The dataset has some annoying column names, with spaces and capital letters.
+The dataset has some annoying column names, with spaces and capital letters. I heard what's cool in the tidyverse is all lowercase, underscores in lieu of spaces.
 
 ```{r rename cols}
 names(grades) <- names(grades) %>% 
@@ -55,30 +58,73 @@ names(grades)
 
 Now, as a devotee of the tidyverse (Praise Be Upon Hadley), I have to convert this data to tidy format, even if I get a dataframe with unwieldly dimensions.
 
+In the process, I drop all of the columns that don't give us grade information. I'm sure there are interesting questions to ask regarding incompletes and auditors, but that's for another day as we're trying to establish a mile-high look at grading practices most relevant to studennts.
+
 ```{r tidy data}
 tidy_grades <- grades %>%
   select(term_code:instructor, `4`:`0`) %>%
   gather(grade, quantity, -(term_code:instructor)) %>%
   mutate(grade = as.numeric(grade),
-         course_code = as.numeric(course_code))
-str(tidy_grades)
+         course_code = as.numeric(course_code)) #numerics are easier to sort by
+
+glimpse(tidy_grades)
 ```
+
+Now we have a tidy dataset that is a whopping 360k rows and 8 columns. Every row is a professor-class-semester-grade combination, and the observation is the quantity of the grade awarded. 
+
+The one hold up is that there are nearly 200 unique subject codes and we don't know all of them. To find out, let's join that in really quick by scraping it off MSU's class schedule site.
+
+```{r scraping major names}
+library("rvest")
+
+codes_and_names <- read_html("https://schedule.msu.edu/") %>%
+  #the following is the html tag to access a dropdown with all majors
+  html_nodes("#MainContent_SrearchUC_ddlSubject option") %>%
+  html_text() %>%
+  str_split(":", simplify = TRUE) %>%
+  as_tibble() %>%
+  rename(subject_code = V1,
+         subject_name = V2)
+
+codes_and_names
+```
+```{r}
+tidy_grades <- tidy_grades %>%
+  left_join(codes_and_names) %>%
+  #reordering the columns
+  select(term_code:subject_code, subject_name, course_code:quantity) 
+
+glimpse(tidy_grades)
+```
+
+Now, let's get to the good parts.
 
 ## Which majors are the easiest and hardest?
 
+This is naturally the first question that a student would be interested in knowing. 
+
+Due the format of the grade information, we have to get a bit creative with calculating the summary stats of each subject by using `sum` and `rep` for the mean and median grade respsectively.
 ```{r}
-tidy_grades %>%
-  group_by(subject_code) %>%
-  #filter(sum(quantity) > 3000) %>%
-  summarise(mean_grade = sum(grade*quantity)/sum(quantity)) %>%
-  arrange(desc(mean_grade))
+gpas_by_subject <- tidy_grades %>%
+  group_by(subject_code, subject_name) %>%
+  #reasonable amount of students since 2011 to lose outliers
+  filter(sum(quantity) > 3000) %>% 
+  summarise(mean_grade = sum(grade*quantity)/sum(quantity),
+            median_grade = median(rep(grade, quantity)))
+gpas_by_subject
 ```
+```{r}
+
+```
+
+
 ```{r distribution of university}
 tidy_grades %>%
   group_by(grade) %>%
   summarise(freq = sum(quantity)) %>%
   ggplot(aes(grade, freq)) +
-  geom_histogram(stat = "identity")
+  geom_histogram(stat = "identity") +
+  ggtitle("Grades awarded at MSU since 2011")
 ```
 
 ```{r densities of different majors}
