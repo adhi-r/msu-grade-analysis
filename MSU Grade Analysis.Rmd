@@ -47,7 +47,7 @@ grades <- grades %>%
 glimpse(grades)
 ```
 
-The dataset has some annoying column names, with spaces and capital letters. I heard what's cool in the tidyverse is all lowercase, underscores in lieu of spaces.
+The dataset has some annoying column names, with spaces and capital letters. I heard what's cool in the tidyverse is all lowercase and underscores in lieu of spaces.
 
 ```{r rename cols}
 names(grades) <- names(grades) %>% 
@@ -108,15 +108,36 @@ Due the format of the grade information, we have to get a bit creative with calc
 gpas_by_subject <- tidy_grades %>%
   group_by(subject_code, subject_name) %>%
   #reasonable amount of students since 2011 to lose outliers
-  filter(sum(quantity) > 3000) %>% 
+  #filter(sum(quantity) > 5000) %>% 
   summarise(mean_grade = sum(grade*quantity)/sum(quantity),
-            median_grade = median(rep(grade, quantity)))
+            median_grade = median(rep(grade, quantity), na.rm = TRUE),
+            freq = sum(quantity))
+            #this will be the number of grades awarded in total sicne 2017
+
 gpas_by_subject
 ```
-```{r}
 
+Easiest majors:
+```{r easiest majors}
+gpas_by_subject %>%
+  arrange(desc(mean_grade))
+```
+Hardest majors:
+```{r hardest majors}
+gpas_by_subject %>%
+  arrange(mean_grade)
 ```
 
+I noticed that the easier subjects have very little grades awarded, and the opposite is true for hte harder subjects. We can investigate that with a scatterplot. Due to the long tailed nature of the frequencies, I log-transformed `freq`.
+
+``` {r grade vs quant scatter}
+gpas_by_subject %>%
+  ggplot(aes(log(freq), mean_grade)) +
+  geom_point() +
+  geom_smooth(method = 'lm')
+```
+
+We can see a clear negative relationship between the quantity of students and the average grade awarded.
 
 ```{r distribution of university}
 tidy_grades %>%
@@ -125,13 +146,6 @@ tidy_grades %>%
   ggplot(aes(grade, freq)) +
   geom_histogram(stat = "identity") +
   ggtitle("Grades awarded at MSU since 2011")
-```
-
-```{r densities of different majors}
-tidy_grades %>%
-  group_by()
-  ggplot(aes(grade,))
-  geom_density()
 ```
 
 
