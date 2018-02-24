@@ -1,0 +1,44 @@
+---
+title: "biddle"
+author: "Adhi Rajaprabhakaran"
+date: "2/21/2018"
+output: html_document
+---
+```{r}
+profs_mean_grade_desc <- tidy_grades %>%
+  group_by(instructor, subject_code, course_code) %>%
+  filter(sum(quantity)>100,
+         course_code >= 200 & course_code <= 800,
+         subject_code == "EC") %>%
+  summarise(mean_grade = sum(grade*quantity)/sum(quantity),
+            median_grade = median(rep(grade, quantity))) %>%
+  arrange(mean_grade)
+
+profs_mean_grade_desc
+```
+```{r}
+
+```
+
+```{r}
+#biddle
+library(tidyverse)
+tidy_grades %>% 
+  filter(instructor == "JEFF E BIDDLE") %>%
+  group_by(instructor, subject_code, course_code) %>%
+  summarise(mean_grade = sum(grade*quantity)/sum(quantity),
+            median_grade = median(rep(grade, quantity))) 
+  glimpse()
+```
+
+```{r}
+tidy_grades %>% 
+  filter(subject_code == "EC",
+         course_code == 420) %>%
+  group_by(instructor, subject_code, course_code) %>%
+  summarise(mean_grade = sum(grade*quantity)/sum(quantity),
+            median_grade = median(rep(grade, quantity))) %>%
+  arrange(mean_grade)
+  glimpse()
+```
+

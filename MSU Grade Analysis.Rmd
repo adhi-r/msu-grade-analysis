@@ -1,13 +1,13 @@
 ---
-title: "MSU Grade Analysis"
+title: "MSU Grade Analysis (Work in Progress)"
 author: "Adhi Rajaprabhakaran"
 date: "9/19/2017"
 output: html_document
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
-options(tibble.print_max = 15, tibble.print_min = 15)
+knitr::opts_chunk$set(echo = TRUE, warning=FALSE, message=FALSE)
+options(tibble.print_max = 10, tibble.print_min = 10)
 ```
 
 ## Importing/Cleaning
@@ -16,12 +16,14 @@ Firstly, I just wanna give huge, huge props to Colin Dillinger who is the one wh
 
 Let's download and check out the dataset as it is.
 
-```{r cars}
+```{r cars, message=FALSE, echo=FALSE}
 library(tidyverse)
 
-httr::GET("https://msugrades.github.io/excel/Grades.xlsx", httr::write_disk(tf <- tempfile(fileext = ".xlsx")))
+httr::GET("https://msugrades.github.io/excel/Grades.xlsx",
+          httr::write_disk(tf <- tempfile(fileext = ".xlsx")))
 grades <- readxl::read_excel(tf)
-
+```
+```{r glimpse data}
 glimpse(grades)
 ```
 
@@ -76,6 +78,7 @@ The one hold up is that there are nearly 200 unique subject codes and we don't k
 
 ```{r scraping major names}
 library("rvest")
+library("stringr")
 
 codes_and_names <- read_html("https://schedule.msu.edu/") %>%
   #the following is the html tag to access a dropdown with all majors
@@ -211,34 +214,30 @@ sem_sub_slopes
 ```
 Most inflated
 ```{r}
-sem_sub_slopes %>%
+inflated_5 <- sem_sub_slopes %>%
   filter(term == "semester") %>%
-  arrange(desc(estimate))
+  arrange(desc(estimate)) %>%
+  head(5)
+
+inflated_5
 ```
 Most tom-brady-ed
 ```{r}
-sem_sub_slopes %>%
+deflated_5 <- sem_sub_slopes %>%
   filter(term == "semester") %>%
-  arrange(estimate)
+  arrange(estimate) %>%
+  head(5)
+
+deflated_5
 ```
 
 ```{r}
-tidy_grades %>%
-  filter(subject_code %in% c("SCM", "FI", "ACC", "MKT", "HR", "MGT"),
-         course_code < 500) %>%
-  group_by(subject_code, course_code) %>%
-  summarise(mean_grade = sum(grade*quantity)/sum(quantity),
-            median_grade = median(rep(grade, quantity))) %>%
-  arrange(-mean_grade)
-```
-
-```{r}
-tidy_grades %>%
-  filter(subject_code %in% c("SCM", "FI", "ACC", "MKT", "HR", "MGT"),
-         course_code < 500) %>%
-  group_by(subject_code, course_code) %>%
-  summarise(mean_grade = sum(grade*quantity)/sum(quantity),
-            median_grade = median(rep(grade, quantity))) %>%
-  arrange(mean_grade)
+by_semester_subject %>%
+  filter(subject_code %in%
+           c(inflated_5$subject_code, deflated_5$subject_code)) %>%
+  ggplot(aes(semester, mean_grade, color = subject_code)) +
+  geom_point() +
+  geom_line() +
+  facet_wrap(~subject_code)
 ```
 
