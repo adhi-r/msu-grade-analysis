@@ -148,43 +148,79 @@ tidy_grades %>%
   ggtitle("Grades awarded at MSU since 2011")
 ```
 
-
-EC 406 is "Economic Analysis of Russia" taught by Professor Susan J. Linz.
-```{r ec 406 distribution}
-tidy_grades %>%
-  filter(subject_code == "EC" & course_code == "406") %>%
-  group_by(grade) %>%
-  summarise(freq = sum(quantity)) %>%
-  ggplot(aes(grade, freq)) +
-  geom_histogram(stat = "identity")
-```
-
-```{r ec distribution}
-hists <- tidy_grades %>%
-  filter(subject_code %in% c("ACC", "MTH", "SCM", "FI", "EC", "MKT")) %>%
-  group_by(subject_code, grade) %>%
-  summarise(freq = sum(quantity)) %>%
-  ggplot(aes(grade, freq, fill = subject_code)) +
-  geom_histogram(stat = "identity")
-
-hists + facet_wrap(~subject_code, scales = "free")
-```
-
 ## Trends over time
+
+### Grade inflation
 ```{r subject over time}
 tidy_grades_semester <- tidy_grades %>%
   # using rank to get the positional order of every semester)
   mutate(semester = dense_rank(tidy_grades$sortable_term)) %>%
   group_by(subject_code, semester) %>%
   summarise(mean_grade = sum(grade*quantity)/sum(quantity))
+```
 
-tidy_grades_semester %>%
-  filter(subject_code %in% c("MTH", "EC", "SCM", "FI", "ENG", "PSY")) %>%
-  ggplot(aes(semester, mean_grade, col = subject_code)) +
+```{r}
+tidy_grades %>%
+  # using rank to get the positional order of every semester)
+  mutate(semester = dense_rank(tidy_grades$sortable_term)) %>%
+  group_by(semester) %>%
+  summarise(mean_grade = sum(grade*quantity)/sum(quantity)) %>%
+  ggplot(aes(semester, mean_grade)) +
   geom_line()
 ```
 
-Two things - clear grade inflation and seasonaility in math courses. Let's check out math.
+Two things - clear grade inflation and seasonaility at MSU. The peaks are summer semesters, which isn't surprising. A lot of "fluff" or "blow off" classes are offered online over the summer. What I do find interesting is that spring (Jan - May) semesters tend to be consistently easier than fall semesters (Aug - Dec). Let's split this up by season.
+
+```{r}
+tidy_grades_season <- tidy_grades %>%
+  # using rank to get the positional order of every semester)
+  mutate(semester = dense_rank(tidy_grades$sortable_term),
+         season = str_sub(term_code, 1,1),
+         season = ifelse(season == "F", "Fall",
+                         ifelse(season == "S", "Spring",
+                                ifelse(season == "U", "Summer", NA))
+                         )
+         )
+
+tidy_grades_season %>%
+  group_by(semester, season) %>%
+  summarise(mean_grade = sum(grade*quantity)/sum(quantity)) %>%
+  ggplot(aes(semester, mean_grade, color = season)) +
+  geom_point() +
+  geom_line()
+```
+
+Which subjects specifically inflated more or less than the others? Here, I'm going to use a clever modeling pattern I learned from David Robinson's EDA course on datacamp. Basically, I split all the data into mini-datasets by semester and subject, then fit a linear model to each mini-dataset, and then extract the coefficients. It's fucking awesome.
+
+```{r}
+library("broom")
+
+by_semester_subject <- tidy_grades_season %>%
+  group_by(semester, subject_code, subject_name) %>%
+  summarise(mean_grade = sum(grade*quantity)/sum(quantity))
+
+sem_sub_slopes <- by_semester_subject %>%
+  ungroup() %>%
+  filter(!is.na(mean_grade)) %>%
+  nest(-subject_code, -subject_name) %>%
+  mutate(models = map(data, ~ lm(mean_grade ~ semester, .))) %>%
+  mutate(tidied = map(models, tidy)) %>%
+  unnest(tidied)
+
+sem_sub_slopes
+```
+Most inflated
+```{r}
+sem_sub_slopes %>%
+  filter(term == "semester") %>%
+  arrange(desc(estimate))
+```
+Most tom-brady-ed
+```{r}
+sem_sub_slopes %>%
+  filter(term == "semester") %>%
+  arrange(estimate)
+```
 
 ```{r}
 tidy_grades %>%
